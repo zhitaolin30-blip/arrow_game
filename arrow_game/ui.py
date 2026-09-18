@@ -136,7 +136,7 @@ class ArrowGameApp:
         self.game = GameState(LEVELS)
         self.sounds = SoundEffects()
         self.running = True
-        self.animation: Animation | None = None
+        self.animations: list[Animation] = []
         self.fonts = {
             "title": self._font(68, bold=True),
             "large": self._font(40, bold=True),
@@ -152,7 +152,8 @@ class ArrowGameApp:
 
     @property
     def input_locked(self) -> bool:
-        return self.animation is not None
+        """仅在结算动画尚未结束时阻止操作隐藏的结算按钮。"""
+        return self.game.phase is not GamePhase.PLAYING and bool(self.animations)
 
     def run(self) -> None:
         while self.running:
@@ -172,7 +173,7 @@ class ArrowGameApp:
             return
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                self.animation = None
+                self.animations.clear()
                 self.game.go_to_menu()
                 return
             if event.key == pygame.K_r and self.game.phase in {
@@ -180,7 +181,7 @@ class ArrowGameApp:
                 GamePhase.FAILED,
                 GamePhase.LEVEL_COMPLETE,
             }:
-                self.animation = None
+                self.animations.clear()
                 self.game.restart_level()
                 return
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
@@ -197,8 +198,10 @@ class ArrowGameApp:
 
         if self.game.phase is GamePhase.PLAYING:
             if self.restart_button.collidepoint(position):
+                self.animations.clear()
                 self.game.restart_level()
             elif self.menu_button.collidepoint(position):
+                self.animations.clear()
                 self.game.go_to_menu()
             else:
                 cell = self.cell_at_pixel(position)
@@ -223,23 +226,28 @@ class ArrowGameApp:
                 self.game.go_to_menu()
 
     def attempt_cell(self, row: int, col: int, *, now: float | None = None) -> MoveResult:
-        if self.input_locked:
+        if self.game.phase is not GamePhase.PLAYING:
+            return MoveResult.IGNORED
+        if any(
+            item.kind == "blocked" and item.row == row and item.col == col
+            for item in self.animations
+        ):
             return MoveResult.IGNORED
         direction = self.game.direction_at(row, col)
         if direction is None:
             return MoveResult.IGNORED
         result = self.game.attempt_move(row, col)
+        started_at = time.monotonic() if now is None else now
         if result is MoveResult.REMOVED:
             self.sounds.play_correct()
-            self.animation = Animation("flying", row, col, direction, now or time.monotonic(), 0.42)
+            self.animations.append(Animation("flying", row, col, direction, started_at, 0.42))
         elif result is MoveResult.BLOCKED:
             self.sounds.play_incorrect()
-            self.animation = Animation("blocked", row, col, direction, now or time.monotonic(), 0.48)
+            self.animations.append(Animation("blocked", row, col, direction, started_at, 0.48))
         return result
 
     def update(self, now: float) -> None:
-        if self.animation and self.animation.progress(now) >= 1.0:
-            self.animation = None
+        self.animations = [item for item in self.animations if item.progress(now) < 1.0]
 
     def draw(self, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
@@ -248,7 +256,7 @@ class ArrowGameApp:
             self._draw_menu()
             return
         self._draw_game(now)
-        if self.animation is None and self.game.phase in {
+        if not self.animations and self.game.phase in {
             GamePhase.LEVEL_COMPLETE,
             GamePhase.FAILED,
             GamePhase.ALL_COMPLETE,
@@ -328,11 +336,15 @@ class ArrowGameApp:
                 )
                 pygame.draw.rect(self.screen, GRID_LINE, cell_rect, width=2)
                 direction = self.game.direction_at(row, col)
-                if direction is not None:
+                blocked_is_animating = any(
+                    item.kind == "blocked" and item.row == row and item.col == col
+                    for item in self.animations
+                )
+                if direction is not None and not blocked_is_animating:
                     self._draw_arrow(cell_rect.center, direction, cell * 0.31, DIRECTION_COLORS[direction])
 
-        if self.animation:
-            self._draw_animation(self.animation, now, board_rect, cell)
+        for animation in self.animations:
+            self._draw_animation(animation, now, board_rect, cell)
 
         self._button(self.restart_button, "重新开始")
         self._button(self.menu_button, "返回主页")

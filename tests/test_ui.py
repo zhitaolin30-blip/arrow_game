@@ -1,9 +1,7 @@
-import time
-
 import pygame
 
-from arrow_game.core import Direction, GamePhase, MoveResult
-from arrow_game.ui import Animation, ArrowGameApp, HEIGHT, WIDTH
+from arrow_game.core import GamePhase, MoveResult
+from arrow_game.ui import ArrowGameApp, HEIGHT, WIDTH
 
 
 def make_app() -> ArrowGameApp:
@@ -19,29 +17,35 @@ def test_pixel_mapping_returns_cell_and_ignores_outside() -> None:
     assert app.cell_at_pixel((0, 0)) is None
 
 
-def test_animation_locks_repeated_input() -> None:
+def test_animation_allows_immediate_click_on_another_arrow() -> None:
     app = make_app()
     app.game.start_game()
-    before = app.game.remaining_arrows
-    app.animation = Animation("blocked", 0, 0, Direction.RIGHT, time.monotonic(), 1.0)
-    assert app.attempt_cell(0, 2) is MoveResult.IGNORED
-    assert app.game.remaining_arrows == before
+    assert app.attempt_cell(0, 2, now=1.0) is MoveResult.REMOVED
+    assert app.attempt_cell(0, 0, now=1.01) is MoveResult.REMOVED
+    assert app.game.remaining_arrows == 2
+    assert len(app.animations) == 2
+
+
+def test_same_colliding_arrow_cannot_charge_twice_during_animation() -> None:
+    app = make_app()
+    app.game.start_game()
+    assert app.attempt_cell(0, 0, now=1.0) is MoveResult.BLOCKED
+    assert app.attempt_cell(0, 0, now=1.01) is MoveResult.IGNORED
+    assert app.game.mistakes_remaining == 2
 
 
 def test_successful_click_creates_flying_animation() -> None:
     app = make_app()
     app.game.start_game()
     assert app.attempt_cell(0, 2, now=1.0) is MoveResult.REMOVED
-    assert app.animation is not None
-    assert app.animation.kind == "flying"
+    assert app.animations[-1].kind == "flying"
 
 
 def test_failed_click_creates_collision_animation() -> None:
     app = make_app()
     app.game.start_game()
     assert app.attempt_cell(0, 0, now=1.0) is MoveResult.BLOCKED
-    assert app.animation is not None
-    assert app.animation.kind == "blocked"
+    assert app.animations[-1].kind == "blocked"
 
 
 def test_correct_and_incorrect_moves_use_different_sounds() -> None:
@@ -61,7 +65,7 @@ def test_correct_and_incorrect_moves_use_different_sounds() -> None:
     app.game.start_game()
 
     assert app.attempt_cell(0, 0, now=1.0) is MoveResult.BLOCKED
-    app.animation = None
+    app.animations.clear()
     assert app.attempt_cell(0, 2, now=2.0) is MoveResult.REMOVED
     assert recorder.calls == ["incorrect", "correct"]
 

@@ -40,10 +40,10 @@ def main() -> None:
     save(app, "02_game.png")
 
     app.game.attempt_move(0, 0)
-    app.animation = Animation("blocked", 0, 0, Direction.RIGHT, 9.75, 0.5)
+    app.animations = [Animation("blocked", 0, 0, Direction.RIGHT, 9.75, 0.5)]
     save(app, "03_collision.png")
 
-    app.animation = None
+    app.animations.clear()
     app.game.board = [["." for _ in row] for row in app.game.board]
     app.game.phase = GamePhase.LEVEL_COMPLETE
     app.game._frozen_elapsed = 8.6
