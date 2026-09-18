@@ -115,7 +115,13 @@ def test_every_builtin_level_is_solvable(game_level: Level) -> None:
     assert replay_solution(game_level, solution)
 
 
+def test_builtin_levels_have_9_16_25_cells_and_more_empty_space() -> None:
+    cell_counts = [len(item.grid) * len(item.grid[0]) for item in LEVELS]
+    empty_counts = [sum(cell == "." for row in item.grid for cell in row) for item in LEVELS]
+    assert cell_counts == [9, 16, 25]
+    assert empty_counts == [5, 10, 17]
+
+
 def test_invalid_level_is_rejected() -> None:
     with pytest.raises(ValueError):
         level("RX")
-

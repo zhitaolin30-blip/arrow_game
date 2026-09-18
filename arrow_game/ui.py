@@ -19,23 +19,23 @@ from .levels import LEVELS
 WIDTH, HEIGHT = 960, 720
 FPS = 60
 
-BG_TOP = (16, 25, 48)
-BG_BOTTOM = (27, 48, 82)
-PANEL = (31, 47, 77)
-PANEL_LIGHT = (43, 64, 101)
-TEXT = (239, 244, 255)
-MUTED = (165, 178, 204)
-ACCENT = (255, 177, 74)
-ACCENT_HOVER = (255, 195, 103)
-DANGER = (245, 92, 101)
-SUCCESS = (79, 205, 151)
-GRID_LINE = (81, 105, 145)
+BG_TOP = (250, 247, 238)
+BG_BOTTOM = (239, 230, 211)
+PANEL = (255, 252, 244)
+PANEL_LIGHT = (221, 207, 181)
+TEXT = (68, 56, 43)
+MUTED = (132, 113, 91)
+ACCENT = (218, 145, 72)
+ACCENT_HOVER = (231, 161, 89)
+DANGER = (196, 82, 75)
+SUCCESS = (82, 146, 105)
+GRID_LINE = (196, 176, 145)
 
 DIRECTION_COLORS = {
-    Direction.UP: (244, 104, 117),
-    Direction.DOWN: (94, 211, 154),
-    Direction.LEFT: (91, 162, 255),
-    Direction.RIGHT: (255, 177, 74),
+    Direction.UP: (199, 84, 78),
+    Direction.DOWN: (78, 143, 101),
+    Direction.LEFT: (84, 126, 165),
+    Direction.RIGHT: (218, 145, 72),
 }
 
 
@@ -306,7 +306,7 @@ class ArrowGameApp:
         hud_items = (
             ("剩余箭头", str(self.game.remaining_arrows), ACCENT),
             ("剩余失误", str(self.game.mistakes_remaining), SUCCESS if self.game.mistakes_remaining > 1 else DANGER),
-            ("本关用时", f"{self.game.elapsed:05.1f}s", (112, 179, 255)),
+            ("本关用时", f"{self.game.elapsed:05.1f}s", (84, 126, 165)),
         )
         for index, (label, value, color) in enumerate(hud_items):
             rect = pygame.Rect(145 + index * 230, 72, 210, 58)
@@ -316,7 +316,7 @@ class ArrowGameApp:
 
         board_rect, cell = self.board_geometry()
         shadow = board_rect.inflate(22, 22)
-        pygame.draw.rect(self.screen, (12, 20, 38), shadow, border_radius=20)
+        pygame.draw.rect(self.screen, (210, 196, 171), shadow, border_radius=20)
         pygame.draw.rect(self.screen, PANEL, board_rect, border_radius=14)
         for row in range(self.game.rows):
             for col in range(self.game.cols):
@@ -365,10 +365,10 @@ class ArrowGameApp:
 
     def _draw_result_overlay(self) -> None:
         veil = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        veil.fill((5, 10, 23, 185))
+        veil.fill((74, 62, 48, 118))
         self.screen.blit(veil, (0, 0))
         card = pygame.Rect(270, 175, 420, 405)
-        pygame.draw.rect(self.screen, (29, 44, 72), card, border_radius=24)
+        pygame.draw.rect(self.screen, PANEL, card, border_radius=24)
         pygame.draw.rect(self.screen, PANEL_LIGHT, card, width=2, border_radius=24)
 
         if self.game.phase is GamePhase.LEVEL_COMPLETE:
@@ -446,9 +446,9 @@ class ArrowGameApp:
         hovered = rect.collidepoint(pygame.mouse.get_pos())
         if primary:
             color = ACCENT_HOVER if hovered else ACCENT
-            text_color = (30, 33, 43)
+            text_color = (55, 43, 31)
         else:
-            color = (57, 79, 117) if hovered else PANEL_LIGHT
+            color = (210, 193, 164) if hovered else PANEL_LIGHT
             text_color = TEXT
         pygame.draw.rect(self.screen, color, rect, border_radius=14)
         self._text(label, self.fonts["body"], text_color, rect.center, center=True)
