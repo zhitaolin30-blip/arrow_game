@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from array import array
 from dataclasses import dataclass
+import io
 import math
 import os
 from pathlib import Path
 import sys
 import time
+import wave
 
 import pygame
 
@@ -49,6 +52,79 @@ class Animation:
         return min(1.0, max(0.0, (now - self.started_at) / self.duration))
 
 
+class SoundEffects:
+    """用代码合成两种提示音；音频设备不可用时自动静默。"""
+
+    SAMPLE_RATE = 44_100
+
+    def __init__(self) -> None:
+        self.enabled = False
+        self.correct: pygame.mixer.Sound | None = None
+        self.incorrect: pygame.mixer.Sound | None = None
+        try:
+            if pygame.mixer.get_init() is None:
+                pygame.mixer.init(frequency=self.SAMPLE_RATE, size=-16, channels=1, buffer=512)
+            self.correct = self._create_sound("correct")
+            self.incorrect = self._create_sound("incorrect")
+            self.correct.set_volume(0.42)
+            self.incorrect.set_volume(0.48)
+            self.enabled = True
+        except pygame.error:
+            self.enabled = False
+
+    def play_correct(self) -> None:
+        self._play(self.correct)
+
+    def play_incorrect(self) -> None:
+        self._play(self.incorrect)
+
+    def _play(self, sound: pygame.mixer.Sound | None) -> None:
+        if not self.enabled or sound is None:
+            return
+        try:
+            sound.play()
+        except pygame.error:
+            self.enabled = False
+
+    def _create_sound(self, kind: str) -> pygame.mixer.Sound:
+        duration = 0.28 if kind == "correct" else 0.24
+        sample_count = int(self.SAMPLE_RATE * duration)
+        samples = array("h")
+        phase = 0.0
+        noise_state = 0x5A17
+        smoothed_noise = 0.0
+        for index in range(sample_count):
+            t = index / self.SAMPLE_RATE
+            progress = index / sample_count
+            if kind == "correct":
+                # 确定性伪随机噪声经过平滑后形成气流感，再叠加短促扫频。
+                noise_state = (1_103_515_245 * noise_state + 12_345) & 0x7FFFFFFF
+                white_noise = noise_state / 0x3FFFFFFF - 1.0
+                smoothed_noise = 0.82 * smoothed_noise + 0.18 * white_noise
+                attack = min(1.0, t / 0.018)
+                envelope = attack * (1.0 - progress) ** 2.2
+                frequency = 1_500.0 - 900.0 * progress
+                phase += 2.0 * math.pi * frequency / self.SAMPLE_RATE
+                value = 0.82 * smoothed_noise + 0.18 * math.sin(phase)
+            else:
+                attack = min(1.0, t / 0.012)
+                envelope = attack * (1.0 - progress) ** 1.8
+                frequency = 175.0 - 35.0 * progress
+                phase += 2.0 * math.pi * frequency / self.SAMPLE_RATE
+                tremolo = 0.72 + 0.28 * math.sin(2.0 * math.pi * 18.0 * t)
+                value = (math.sin(phase) + 0.42 * math.sin(phase * 0.5)) * tremolo
+            samples.append(int(max(-1.0, min(1.0, value * 0.55 * envelope)) * 32767))
+
+        stream = io.BytesIO()
+        with wave.open(stream, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(self.SAMPLE_RATE)
+            wav.writeframes(samples.tobytes())
+        stream.seek(0)
+        return pygame.mixer.Sound(file=stream)
+
+
 class ArrowGameApp:
     def __init__(self, *, screen: pygame.Surface | None = None) -> None:
         pygame.init()
@@ -58,6 +134,7 @@ class ArrowGameApp:
             pygame.display.set_caption("一箭又一箭")
         self.clock = pygame.time.Clock()
         self.game = GameState(LEVELS)
+        self.sounds = SoundEffects()
         self.running = True
         self.animation: Animation | None = None
         self.fonts = {
@@ -153,8 +230,10 @@ class ArrowGameApp:
             return MoveResult.IGNORED
         result = self.game.attempt_move(row, col)
         if result is MoveResult.REMOVED:
+            self.sounds.play_correct()
             self.animation = Animation("flying", row, col, direction, now or time.monotonic(), 0.42)
         elif result is MoveResult.BLOCKED:
+            self.sounds.play_incorrect()
             self.animation = Animation("blocked", row, col, direction, now or time.monotonic(), 0.48)
         return result
 

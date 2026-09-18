@@ -44,6 +44,28 @@ def test_failed_click_creates_collision_animation() -> None:
     assert app.animation.kind == "blocked"
 
 
+def test_correct_and_incorrect_moves_use_different_sounds() -> None:
+    class Recorder:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def play_correct(self) -> None:
+            self.calls.append("correct")
+
+        def play_incorrect(self) -> None:
+            self.calls.append("incorrect")
+
+    app = make_app()
+    recorder = Recorder()
+    app.sounds = recorder
+    app.game.start_game()
+
+    assert app.attempt_cell(0, 0, now=1.0) is MoveResult.BLOCKED
+    app.animation = None
+    assert app.attempt_cell(0, 2, now=2.0) is MoveResult.REMOVED
+    assert recorder.calls == ["incorrect", "correct"]
+
+
 def test_draw_all_scenes_without_error() -> None:
     app = make_app()
     app.draw(1.0)
@@ -55,4 +77,3 @@ def test_draw_all_scenes_without_error() -> None:
     app.draw(1.0)
     app.game.phase = GamePhase.ALL_COMPLETE
     app.draw(1.0)
-
