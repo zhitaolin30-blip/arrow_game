@@ -31,12 +31,8 @@ DANGER = (196, 82, 75)
 SUCCESS = (82, 146, 105)
 GRID_LINE = (196, 176, 145)
 
-DIRECTION_COLORS = {
-    Direction.UP: (199, 84, 78),
-    Direction.DOWN: (78, 143, 101),
-    Direction.LEFT: (84, 126, 165),
-    Direction.RIGHT: (218, 145, 72),
-}
+ARROW_GREEN = (78, 143, 101)
+DIRECTION_COLORS = {direction: ARROW_GREEN for direction in Direction}
 
 
 @dataclass

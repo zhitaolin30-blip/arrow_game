@@ -1,7 +1,7 @@
 import pygame
 
-from arrow_game.core import GamePhase, MoveResult
-from arrow_game.ui import ArrowGameApp, HEIGHT, WIDTH
+from arrow_game.core import Direction, GamePhase, MoveResult
+from arrow_game.ui import ARROW_GREEN, DANGER, DIRECTION_COLORS, ArrowGameApp, HEIGHT, WIDTH
 
 
 def make_app() -> ArrowGameApp:
@@ -15,6 +15,11 @@ def test_pixel_mapping_returns_cell_and_ignores_outside() -> None:
     board, cell = app.board_geometry()
     assert app.cell_at_pixel((board.x + cell / 2, board.y + cell / 2)) == (0, 0)
     assert app.cell_at_pixel((0, 0)) is None
+
+
+def test_normal_arrows_are_green_and_collision_is_red() -> None:
+    assert {DIRECTION_COLORS[direction] for direction in Direction} == {ARROW_GREEN}
+    assert DANGER != ARROW_GREEN
 
 
 def test_animation_allows_immediate_click_on_another_arrow() -> None:
