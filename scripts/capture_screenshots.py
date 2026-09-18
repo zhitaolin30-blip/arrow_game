@@ -39,6 +39,13 @@ def main() -> None:
     app.game.start_game()
     save(app, "02_game.png")
 
+    app.game.current_level_index = 3
+    app.game.restart_level()
+    save(app, "06_extension.png")
+
+    app.game.current_level_index = 0
+    app.game.restart_level()
+
     app.game.attempt_move(0, 0)
     app.animations = [Animation("blocked", 0, 0, Direction.RIGHT, 9.75, 0.5)]
     save(app, "03_collision.png")

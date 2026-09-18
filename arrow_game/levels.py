@@ -32,4 +32,16 @@ LEVELS = (
         ),
         max_mistakes=4,
     ),
+    Level(
+        name="扩展关 · 环环相扣",
+        grid=(
+            ".D....",
+            ".D.LRD",
+            ".L.D..",
+            "..RD..",
+            ".....R",
+            "RR.RU.",
+        ),
+        max_mistakes=5,
+    ),
 )

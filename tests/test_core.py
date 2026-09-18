@@ -115,11 +115,24 @@ def test_every_builtin_level_is_solvable(game_level: Level) -> None:
     assert replay_solution(game_level, solution)
 
 
-def test_builtin_levels_have_9_16_25_cells_and_more_empty_space() -> None:
+def test_builtin_levels_grow_from_9_to_36_cells_with_more_empty_space() -> None:
     cell_counts = [len(item.grid) * len(item.grid[0]) for item in LEVELS]
     empty_counts = [sum(cell == "." for row in item.grid for cell in row) for item in LEVELS]
-    assert cell_counts == [9, 16, 25]
-    assert empty_counts == [5, 10, 17]
+    assert cell_counts == [9, 16, 25, 36]
+    assert empty_counts == [5, 10, 17, 22]
+
+
+def test_extension_level_starts_with_only_two_valid_choices() -> None:
+    game = GameState((LEVELS[-1],))
+    game.start_game()
+    valid_moves = [
+        (row, col)
+        for row in range(game.rows)
+        for col in range(game.cols)
+        if game.direction_at(row, col) is not None and game.has_clear_path(row, col)
+    ]
+    assert game.remaining_arrows == 14
+    assert len(valid_moves) == 2
 
 
 def test_invalid_level_is_rejected() -> None:

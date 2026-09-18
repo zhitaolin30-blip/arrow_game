@@ -386,7 +386,7 @@ class ArrowGameApp:
             title, subtitle, color = "挑战失败", "失误机会已经用完", DANGER
             primary, secondary = "重新挑战", "返回主页"
         else:
-            title, subtitle, color = "全部通关！", "三道谜题全部完成", ACCENT
+            title, subtitle, color = "全部通关！", f"{len(self.game.levels)} 道谜题全部完成", ACCENT
             primary, secondary = "再玩一次", "返回主页"
 
         pygame.draw.circle(self.screen, color, (WIDTH // 2, 245), 42, width=5)
