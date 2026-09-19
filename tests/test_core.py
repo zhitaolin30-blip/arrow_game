@@ -115,14 +115,14 @@ def test_every_builtin_level_is_solvable(game_level: Level) -> None:
     assert replay_solution(game_level, solution)
 
 
-def test_builtin_levels_grow_from_9_to_36_cells_with_more_empty_space() -> None:
+def test_builtin_levels_grow_from_25_to_64_cells() -> None:
     cell_counts = [len(item.grid) * len(item.grid[0]) for item in LEVELS]
     empty_counts = [sum(cell == "." for row in item.grid for cell in row) for item in LEVELS]
-    assert cell_counts == [9, 16, 25, 36]
-    assert empty_counts == [5, 10, 17, 22]
+    assert cell_counts == [25, 36, 49, 64]
+    assert empty_counts == [17, 24, 33, 44]
 
 
-def test_extension_level_starts_with_only_two_valid_choices() -> None:
+def test_hardest_level_starts_with_only_three_valid_choices() -> None:
     game = GameState((LEVELS[-1],))
     game.start_game()
     valid_moves = [
@@ -131,8 +131,47 @@ def test_extension_level_starts_with_only_two_valid_choices() -> None:
         for col in range(game.cols)
         if game.direction_at(row, col) is not None and game.has_clear_path(row, col)
     ]
-    assert game.remaining_arrows == 14
-    assert len(valid_moves) == 2
+    assert game.remaining_arrows == 20
+    assert len(valid_moves) == 3
+
+
+def test_hint_returns_a_valid_move_and_has_two_uses_per_level() -> None:
+    game = started(level("R.."))
+    original = [row[:] for row in game.board]
+    assert game.request_hint() == (0, 0)
+    assert game.hints_remaining == 1
+    assert game.board == original
+    assert game.request_hint() == (0, 0)
+    assert game.hints_remaining == 0
+    assert game.request_hint() is None
+
+
+def test_restart_restores_both_hints() -> None:
+    game = started(level("R.."))
+    game.request_hint()
+    game.restart_level()
+    assert game.hints_remaining == 2
+
+
+def test_star_rating_uses_time_and_mistakes() -> None:
+    current = [10.0]
+    perfect = started(Level("星级", ("R",), 3, 10, 20), clock=lambda: current[0])
+    current[0] = 18.0
+    perfect.attempt_move(0, 0)
+    assert perfect.stars_earned == 3
+
+    current[0] = 30.0
+    one_mistake = started(Level("星级", ("R.U",), 3, 10, 20), clock=lambda: current[0])
+    one_mistake.attempt_move(0, 0)
+    one_mistake.attempt_move(0, 2)
+    one_mistake.attempt_move(0, 0)
+    assert one_mistake.stars_earned == 2
+
+    current[0] = 60.0
+    slow = started(Level("星级", ("R",), 3, 10, 20), clock=lambda: current[0])
+    current[0] = 85.0
+    slow.attempt_move(0, 0)
+    assert slow.stars_earned == 1
 
 
 def test_invalid_level_is_rejected() -> None:

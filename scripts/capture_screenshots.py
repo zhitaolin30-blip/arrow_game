@@ -39,21 +39,27 @@ def main() -> None:
     app.game.start_game()
     save(app, "02_game.png")
 
+    app.use_hint()
+    save(app, "07_hint.png")
+
     app.game.current_level_index = 3
     app.game.restart_level()
+    app.hinted_cell = None
     save(app, "06_extension.png")
 
     app.game.current_level_index = 0
     app.game.restart_level()
 
-    app.game.attempt_move(0, 0)
-    app.animations = [Animation("blocked", 0, 0, Direction.RIGHT, 9.75, 0.5)]
+    app.game.attempt_move(1, 0)
+    app.animations = [Animation("blocked", 1, 0, Direction.RIGHT, 9.75, 0.5)]
     save(app, "03_collision.png")
 
     app.animations.clear()
     app.game.board = [["." for _ in row] for row in app.game.board]
     app.game.phase = GamePhase.LEVEL_COMPLETE
     app.game._frozen_elapsed = 8.6
+    app.game.mistakes_made = 0
+    app.game.stars_earned = 3
     save(app, "04_complete.png")
 
     app.game.phase = GamePhase.FAILED

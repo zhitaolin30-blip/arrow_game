@@ -24,9 +24,13 @@ def main() -> None:
 
     game = GameState(LEVELS)
     game.start_game()
-    result = game.attempt_move(0, 0)
+    result = game.attempt_move(1, 0)
     assert result is MoveResult.BLOCKED
     print("T02 阻挡与失误扣减：通过")
+    hint = game.request_hint()
+    assert hint is not None and game.has_clear_path(*hint)
+    assert game.hints_remaining == 1
+    print("提示坐标与次数扣减：通过")
     print("全部自检通过。")
 
 

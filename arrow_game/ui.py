@@ -30,6 +30,8 @@ ACCENT_HOVER = (231, 161, 89)
 DANGER = (196, 82, 75)
 SUCCESS = (82, 146, 105)
 GRID_LINE = (196, 176, 145)
+HINT_YELLOW = (247, 196, 67)
+STAR_GOLD = (236, 171, 48)
 
 ARROW_GREEN = (78, 143, 101)
 DIRECTION_COLORS = {direction: ARROW_GREEN for direction in Direction}
@@ -133,6 +135,7 @@ class ArrowGameApp:
         self.sounds = SoundEffects()
         self.running = True
         self.animations: list[Animation] = []
+        self.hinted_cell: tuple[int, int] | None = None
         self.fonts = {
             "title": self._font(68, bold=True),
             "large": self._font(40, bold=True),
@@ -141,10 +144,11 @@ class ArrowGameApp:
             "small": self._font(17),
         }
         self.start_button = pygame.Rect(350, 510, 260, 68)
+        self.hint_button = pygame.Rect(445, 638, 150, 48)
         self.restart_button = pygame.Rect(610, 638, 150, 48)
         self.menu_button = pygame.Rect(775, 638, 150, 48)
-        self.overlay_primary = pygame.Rect(345, 430, 270, 58)
-        self.overlay_secondary = pygame.Rect(345, 504, 270, 50)
+        self.overlay_primary = pygame.Rect(345, 448, 270, 58)
+        self.overlay_secondary = pygame.Rect(345, 520, 270, 50)
 
     @property
     def input_locked(self) -> bool:
@@ -170,6 +174,7 @@ class ArrowGameApp:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self.animations.clear()
+                self.hinted_cell = None
                 self.game.go_to_menu()
                 return
             if event.key == pygame.K_r and self.game.phase in {
@@ -178,6 +183,7 @@ class ArrowGameApp:
                 GamePhase.LEVEL_COMPLETE,
             }:
                 self.animations.clear()
+                self.hinted_cell = None
                 self.game.restart_level()
                 return
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
@@ -187,17 +193,22 @@ class ArrowGameApp:
         if self.game.phase is GamePhase.MENU:
             if self.start_button.collidepoint(position):
                 self.game.start_game()
+                self.hinted_cell = None
             return
 
         if self.input_locked:
             return
 
         if self.game.phase is GamePhase.PLAYING:
-            if self.restart_button.collidepoint(position):
+            if self.hint_button.collidepoint(position):
+                self.use_hint()
+            elif self.restart_button.collidepoint(position):
                 self.animations.clear()
+                self.hinted_cell = None
                 self.game.restart_level()
             elif self.menu_button.collidepoint(position):
                 self.animations.clear()
+                self.hinted_cell = None
                 self.game.go_to_menu()
             else:
                 cell = self.cell_at_pixel(position)
@@ -208,18 +219,31 @@ class ArrowGameApp:
         if self.game.phase is GamePhase.LEVEL_COMPLETE:
             if self.overlay_primary.collidepoint(position):
                 self.game.next_level()
+                self.hinted_cell = None
             elif self.overlay_secondary.collidepoint(position):
                 self.game.restart_level()
+                self.hinted_cell = None
         elif self.game.phase is GamePhase.FAILED:
             if self.overlay_primary.collidepoint(position):
                 self.game.restart_level()
+                self.hinted_cell = None
             elif self.overlay_secondary.collidepoint(position):
                 self.game.go_to_menu()
+                self.hinted_cell = None
         elif self.game.phase is GamePhase.ALL_COMPLETE:
             if self.overlay_primary.collidepoint(position):
                 self.game.start_game()
+                self.hinted_cell = None
             elif self.overlay_secondary.collidepoint(position):
                 self.game.go_to_menu()
+                self.hinted_cell = None
+
+    def use_hint(self) -> tuple[int, int] | None:
+        """高亮一个当前可正确点击的格子。"""
+        if self.hinted_cell is not None:
+            return self.hinted_cell
+        self.hinted_cell = self.game.request_hint()
+        return self.hinted_cell
 
     def attempt_cell(self, row: int, col: int, *, now: float | None = None) -> MoveResult:
         if self.game.phase is not GamePhase.PLAYING:
@@ -233,6 +257,8 @@ class ArrowGameApp:
         if direction is None:
             return MoveResult.IGNORED
         result = self.game.attempt_move(row, col)
+        if result is not MoveResult.IGNORED:
+            self.hinted_cell = None
         started_at = time.monotonic() if now is None else now
         if result is MoveResult.REMOVED:
             self.sounds.play_correct()
@@ -295,7 +321,7 @@ class ArrowGameApp:
         rules = (
             "点击箭头，检查它朝向的整条路径",
             "前方无阻挡：飞出棋盘    有阻挡：扣除失误机会",
-            "清空全部箭头即可通关，失误耗尽则挑战失败",
+            "每关 2 次黄色提示，用时和失误数决定星级",
         )
         for index, line in enumerate(rules):
             color = TEXT if index == 0 else MUTED
@@ -330,6 +356,11 @@ class ArrowGameApp:
                     cell,
                     cell,
                 )
+                if self.hinted_cell == (row, col):
+                    pulse = 0.72 + 0.18 * math.sin(now * 7.0)
+                    highlight = tuple(int(value * pulse + 255 * (1.0 - pulse)) for value in HINT_YELLOW)
+                    pygame.draw.rect(self.screen, highlight, cell_rect.inflate(-5, -5), border_radius=8)
+                    pygame.draw.rect(self.screen, HINT_YELLOW, cell_rect.inflate(-4, -4), width=4, border_radius=8)
                 pygame.draw.rect(self.screen, GRID_LINE, cell_rect, width=2)
                 direction = self.game.direction_at(row, col)
                 blocked_is_animating = any(
@@ -342,6 +373,11 @@ class ArrowGameApp:
         for animation in self.animations:
             self._draw_animation(animation, now, board_rect, cell)
 
+        self._button(
+            self.hint_button,
+            f"提示 ({self.game.hints_remaining})",
+            enabled=self.game.hints_remaining > 0 or self.hinted_cell is not None,
+        )
         self._button(self.restart_button, "重新开始")
         self._button(self.menu_button, "返回主页")
         self._text("R 重开   ·   Esc 返回主页", self.fonts["small"], MUTED, (35, 663))
@@ -380,7 +416,9 @@ class ArrowGameApp:
         pygame.draw.rect(self.screen, PANEL_LIGHT, card, width=2, border_radius=24)
 
         if self.game.phase is GamePhase.LEVEL_COMPLETE:
-            title, subtitle, color = "关卡完成！", f"用时 {self.game.elapsed:.1f} 秒", SUCCESS
+            title = "关卡完成！"
+            subtitle = f"用时 {self.game.elapsed:.1f} 秒  ·  失误 {self.game.mistakes_made} 次"
+            color = SUCCESS
             primary, secondary = "进入下一关", "重玩本关"
         elif self.game.phase is GamePhase.FAILED:
             title, subtitle, color = "挑战失败", "失误机会已经用完", DANGER
@@ -397,6 +435,13 @@ class ArrowGameApp:
             pygame.draw.lines(self.screen, color, False, ((459, 245), (474, 260), (503, 226)), width=7)
         self._text(title, self.fonts["large"], TEXT, (WIDTH // 2, 320), center=True)
         self._text(subtitle, self.fonts["body"], MUTED, (WIDTH // 2, 368), center=True)
+        if self.game.phase is GamePhase.LEVEL_COMPLETE:
+            for index in range(3):
+                self._draw_star(
+                    (WIDTH // 2 - 62 + index * 62, 408),
+                    23,
+                    filled=index < self.game.stars_earned,
+                )
         self._button(self.overlay_primary, primary, primary=True)
         self._button(self.overlay_secondary, secondary)
 
@@ -450,9 +495,30 @@ class ArrowGameApp:
         pygame.draw.rect(self.screen, PANEL, rect, border_radius=radius)
         pygame.draw.rect(self.screen, PANEL_LIGHT, rect, width=1, border_radius=radius)
 
-    def _button(self, rect: pygame.Rect, label: str, *, primary: bool = False) -> None:
+    def _draw_star(self, center: tuple[float, float], radius: float, *, filled: bool) -> None:
+        points = []
+        for index in range(10):
+            angle = -math.pi / 2 + index * math.pi / 5
+            length = radius if index % 2 == 0 else radius * 0.44
+            points.append((center[0] + math.cos(angle) * length, center[1] + math.sin(angle) * length))
+        if filled:
+            pygame.draw.polygon(self.screen, STAR_GOLD, points)
+        else:
+            pygame.draw.polygon(self.screen, PANEL_LIGHT, points, width=3)
+
+    def _button(
+        self,
+        rect: pygame.Rect,
+        label: str,
+        *,
+        primary: bool = False,
+        enabled: bool = True,
+    ) -> None:
         hovered = rect.collidepoint(pygame.mouse.get_pos())
-        if primary:
+        if not enabled:
+            color = (224, 215, 196)
+            text_color = (158, 145, 126)
+        elif primary:
             color = ACCENT_HOVER if hovered else ACCENT
             text_color = (55, 43, 31)
         else:

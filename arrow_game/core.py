@@ -41,6 +41,8 @@ class Level:
     name: str
     grid: tuple[str, ...]
     max_mistakes: int
+    three_star_seconds: float = 30.0
+    two_star_seconds: float = 60.0
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -57,6 +59,8 @@ class Level:
             raise ValueError("关卡至少需要一个箭头")
         if self.max_mistakes <= 0:
             raise ValueError("失误上限必须大于 0")
+        if self.three_star_seconds <= 0 or self.two_star_seconds <= self.three_star_seconds:
+            raise ValueError("星级时间阈值必须为递增的正数")
 
 
 class GameState:
@@ -75,6 +79,9 @@ class GameState:
         self.phase = GamePhase.MENU
         self.board: list[list[str]] = []
         self.mistakes_remaining = 0
+        self.mistakes_made = 0
+        self.hints_remaining = 2
+        self.stars_earned = 0
         self._started_at = 0.0
         self._frozen_elapsed = 0.0
         self._load_current_level()
@@ -143,6 +150,35 @@ class GameState:
             col += dc
         return True
 
+    def available_moves(self) -> list[tuple[int, int]]:
+        """返回当前所有可安全消除的箭头。"""
+        if self.phase is not GamePhase.PLAYING:
+            return []
+        return [
+            (row, col)
+            for row in range(self.rows)
+            for col in range(self.cols)
+            if self.direction_at(row, col) is not None and self.has_clear_path(row, col)
+        ]
+
+    def request_hint(self) -> tuple[int, int] | None:
+        """消耗一次机会，返回一个当前可正确点击的格子。"""
+        if self.phase is not GamePhase.PLAYING or self.hints_remaining <= 0:
+            return None
+        moves = self.available_moves()
+        if not moves:
+            return None
+        self.hints_remaining -= 1
+        return moves[0]
+
+    def calculate_stars(self) -> int:
+        """按完成时间和失误次数计算 1–3 星。"""
+        if self.mistakes_made == 0 and self.elapsed <= self.level.three_star_seconds:
+            return 3
+        if self.mistakes_made <= 1 and self.elapsed <= self.level.two_star_seconds:
+            return 2
+        return 1
+
     def attempt_move(self, row: int, col: int) -> MoveResult:
         if self.phase is not GamePhase.PLAYING:
             return MoveResult.IGNORED
@@ -152,6 +188,7 @@ class GameState:
 
         if not self.has_clear_path(row, col):
             self.mistakes_remaining -= 1
+            self.mistakes_made += 1
             if self.mistakes_remaining <= 0:
                 self.mistakes_remaining = 0
                 self._freeze_timer()
@@ -162,6 +199,7 @@ class GameState:
         if self.remaining_arrows == 0:
             self._freeze_timer()
             self.phase = GamePhase.LEVEL_COMPLETE
+            self.stars_earned = self.calculate_stars()
         return MoveResult.REMOVED
 
     def _inside(self, row: int, col: int) -> bool:
@@ -170,6 +208,9 @@ class GameState:
     def _load_current_level(self) -> None:
         self.board = [list(row) for row in self.level.grid]
         self.mistakes_remaining = self.level.max_mistakes
+        self.mistakes_made = 0
+        self.hints_remaining = 2
+        self.stars_earned = 0
         self._started_at = self.clock()
         self._frozen_elapsed = 0.0
         self.phase = GamePhase.PLAYING
